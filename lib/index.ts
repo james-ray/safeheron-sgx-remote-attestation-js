@@ -2,13 +2,14 @@
 import * as BN from "bn.js"
 import {ECIES} from '@safeheron/crypto-ecies'
 import * as elliptic from "elliptic"
+
 const P256 = new elliptic.ec('p256')
 import * as CryptoLib from "crypto"
 import {UrlBase64} from "@safeheron/crypto-utils"
 import * as cryptoJS from "crypto-js"
 import {Certificate} from '@fidm/x509'
 import {VerifyData} from "./interface";
-import { Buffer } from "buffer";
+import {Buffer} from "buffer";
 
 export class RemoteAttestor {
     private logInfo: string
@@ -17,16 +18,33 @@ export class RemoteAttestor {
         this.logInfo = ""
     }
 
-    public verifyReport(report: string | VerifyData, sgx_root_cert:string | Buffer): boolean {
+    public verifyReport(report: string | VerifyData, sgx_root_cert: string | Buffer): boolean {
+        // Log the type and value of the report parameter
+
         this.logInfo = ""
         let input_data
-        if(typeof report === 'string'){
-            input_data = JSON.parse(report) as VerifyData
-        }else{
+
+        // Check if report is not null or undefined
+        if (report == null) {
+            console.error('Error: report is null or undefined');
+            return false;
+        }
+        if (typeof report === 'string') {
+            try {
+                input_data = JSON.parse(report) as VerifyData;
+            } catch (error) {
+                console.error('Error parsing report string:', error);
+                return false;
+            }
+            //console.log('after parse: input_data:', input_data);
+        } else {
             input_data = report;
+            console.log("directly assigned")
         }
 
+        //console.log('input_data:', input_data);
         let json_data = input_data.tee_return_data;
+        //console.log('json_data:', json_data);
         const tee_report = json_data.tee_report;
         let tee_report_bytes = UrlBase64.toBytes(tee_report);
         let tee_report_buffer = Buffer.from(tee_report_bytes);
@@ -37,7 +55,7 @@ export class RemoteAttestor {
         // get User Data
         let private_key = input_data.private_key;
         const app_user_data = this.getAppReportHash(key_shard_pkg, json_pubkey_list_hash, private_key);
-        if (app_user_data == false){
+        if (app_user_data == false) {
             this.appendLog("Verify TEE Report failed!\n");
             return false;
         }
@@ -45,8 +63,7 @@ export class RemoteAttestor {
         const result = this.verifyReportStepByStep(tee_report_buffer, app_user_data, Buffer.from(sgx_root_cert));
         if (result) {
             this.appendLog("Verify TEE Report successfully!\n");
-        }
-        else {
+        } else {
             this.appendLog("Verify TEE Report failed!\n");
         }
         return true;
@@ -96,7 +113,7 @@ export class RemoteAttestor {
         return digest.toString(cryptoJS.enc.Hex);
     }
 
-    private getAppReportHash(key_shard_pkg, json_pubkey_list_hash, private_key ) {
+    private getAppReportHash(key_shard_pkg, json_pubkey_list_hash, private_key) {
         let hashList = [];
         let key_meta_hash;
         let plain_buffer;
@@ -106,12 +123,12 @@ export class RemoteAttestor {
         for (let pkg_element in key_shard_pkg) {
             let keyShard = key_shard_pkg[pkg_element];
             hashList.push(keyShard.public_key);
-            if(key_pair_dict[keyShard.public_key] == private_key){
+            if (key_pair_dict[keyShard.public_key] == private_key) {
                 index = pkg_element;
             }
         }
 
-        if(index === undefined){
+        if (index === undefined) {
             throw new Error('Private key does not match the encrypted message!')
         }
 
@@ -122,7 +139,23 @@ export class RemoteAttestor {
         plain_buffer = Buffer.from(ECIES.decryptBytes(pri_key, encrypt_key_info));
 
         const key_info = JSON.parse(plain_buffer.toString());
+        this.appendLog("key_info: " + JSON.stringify(key_info, null, 2));
 
+// Log each property of key_info individually
+        this.appendLog("key_meta: " + JSON.stringify(key_info.key_meta, null, 2));
+        this.appendLog("key_shard: " + JSON.stringify(key_info.key_shard, null, 2));
+
+// Log each property of key_meta individually
+        this.appendLog("key_meta.k: " + key_info.key_meta.k);
+        this.appendLog("key_meta.l: " + key_info.key_meta.l);
+        this.appendLog("key_meta.vkv: " + key_info.key_meta.vkv);
+        this.appendLog("key_meta.vku: " + key_info.key_meta.vku);
+        this.appendLog("key_meta.vkiArr: " + JSON.stringify(key_info.key_meta.vkiArr, null, 2));
+
+// Log each property of key_shard individually
+        this.appendLog("key_shard.index: " + key_info.key_shard.index);
+        this.appendLog("key_shard.private_key_shard: " + key_info.key_shard.private_key_shard);
+        
         // get key meta hash
         key_meta_hash = this.getKeyMetaHash(key_info, 'key_meta');
 
@@ -133,7 +166,7 @@ export class RemoteAttestor {
         this.appendLog("The calculated public key list hash: " + json_pubkey_list_hash);
         this.appendLog("*************************************************************************************************************");
 
-        if (pubkey_list_hash != json_pubkey_list_hash){
+        if (pubkey_list_hash != json_pubkey_list_hash) {
             this.appendLog("Verify the public key list hash failed!\n");
             return false;
         }
@@ -188,9 +221,9 @@ export class RemoteAttestor {
             u = tmp + cert_length;
         }
 
-        const pck_cert =  Certificate.fromPEM(keyCert[0]);
+        const pck_cert = Certificate.fromPEM(keyCert[0]);
         const processor_cert = Certificate.fromPEM(keyCert[1]);
-        const sgx_root =  Certificate.fromPEM(sgx_root_cert);
+        const sgx_root = Certificate.fromPEM(sgx_root_cert);
 
         // verify certification chain
         let result = processor_cert.checkSignature(pck_cert) == null &&
@@ -247,7 +280,7 @@ export class RemoteAttestor {
 
         // hash QE report
         // convert it to BN
-        let hash = new BN(this.sha256Digest(tee_report_buffer.slice(qe_report_offset , qe_report_offset + qe_report_size), 'hex'), 16);
+        let hash = new BN(this.sha256Digest(tee_report_buffer.slice(qe_report_offset, qe_report_offset + qe_report_size), 'hex'), 16);
 
         // get QE report signature
         let signature = tee_report_buffer.slice(qe_signature_offset, qe_signature_offset + qe_signature_size);
@@ -263,7 +296,7 @@ export class RemoteAttestor {
         return ecdsa.verify(hash, sig, pub);
     };
 
-    private verifyReportStepByStep(tee_report_buffer: Buffer, app_user_data, sgx_root_cert: Buffer){
+    private verifyReportStepByStep(tee_report_buffer: Buffer, app_user_data, sgx_root_cert: Buffer) {
 
         const [cert_chain_result, pck_cert] = this.verifyCertChain(tee_report_buffer, sgx_root_cert);
         if (cert_chain_result !== true) {
@@ -325,3 +358,4 @@ export class RemoteAttestor {
         return true;
     }
 }
+
