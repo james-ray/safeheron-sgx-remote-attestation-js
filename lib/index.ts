@@ -59,8 +59,11 @@ export class RemoteAttestor {
             this.appendLog("Verify TEE Report failed!\n");
             return false;
         }
+        const {keyInfo , appHash} = app_user_data
+        console.log("[verifyReport] keyInfo",keyInfo)
+        this.appendLog(`Key Info: ${JSON.stringify(keyInfo, null, 2)}`);
         // verify TEE Report
-        const result = this.verifyReportStepByStep(tee_report_buffer, app_user_data, Buffer.from(sgx_root_cert));
+        const result = this.verifyReportStepByStep(tee_report_buffer, appHash, Buffer.from(sgx_root_cert));
         if (result) {
             this.appendLog("Verify TEE Report successfully!\n");
         } else {
@@ -173,7 +176,8 @@ export class RemoteAttestor {
         this.appendLog("1. The public key list hash has been verified successfully!\n");
 
         // hash the concatenation of public key list hash and key meta hash
-        return this.sha256Digest(Buffer.concat([Buffer.from(pubkey_list_hash, 'hex'), Buffer.from(key_meta_hash, 'hex')]), 'hex');
+        let appHash = this.sha256Digest(Buffer.concat([Buffer.from(pubkey_list_hash, 'hex'), Buffer.from(key_meta_hash, 'hex')]), 'hex')
+        return {success:true,keyInfo:key_info,appHash}
     }
 
     private getQeReportHash(tee_report_buffer) {
