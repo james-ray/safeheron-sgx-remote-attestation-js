@@ -18,7 +18,7 @@ export class RemoteAttestor {
         this.logInfo = ""
     }
 
-    public verifyReport(report: string | VerifyData, sgx_root_cert: string | Buffer): boolean {
+    public verifyReport(report: string | VerifyData, sgx_root_cert: string | Buffer): any {
         // Log the type and value of the report parameter
 
         this.logInfo = ""
@@ -69,8 +69,8 @@ export class RemoteAttestor {
         } else {
             this.appendLog("Verify TEE Report failed!\n");
         }
-        return true;
-    }
+        return {success:true,keyInfo:keyInfo,appHash:appHash}
+       }
 
     public exportLog(): string {
         return this.logInfo
