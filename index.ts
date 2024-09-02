@@ -10,6 +10,8 @@ const port = process.env.PORT || 3000;
 
 app.use(express.json()); // Middleware to parse JSON bodies
 
+export {RemoteAttestor}
+
 app.post('/webhook', async (req: Request, res: Response) => {
     console.time('attestation');
     try {
