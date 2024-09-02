@@ -14,6 +14,7 @@ describe('SGX remote attestation:', async function () {
         try {
             let attestor = new RemoteAttestor();
             let success = attestor.verifyReport(report_data_json, sgx_root_cert);
+            console.log("[debug] result:",success)
             assert(success);
             console.log(attestor.exportLog());
         }catch (e) {
