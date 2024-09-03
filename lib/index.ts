@@ -41,8 +41,6 @@ export class RemoteAttestor {
             input_data = report;
             console.log("directly assigned")
         }
-        this.appendLog("[debug] =====> string report:"+report)
-
         //console.log('input_data:', input_data);
         let json_data = input_data.tee_return_data;
         //console.log('json_data:', json_data);
@@ -60,7 +58,6 @@ export class RemoteAttestor {
             return false;
         }
         const {key_info , app_hash, public_key} = app_user_data
-        this.appendLog(`Key Info: ${JSON.stringify(key_info, null, 2)}`);
         // verify TEE Report
         const result = this.verifyReportStepByStep(tee_report_buffer, app_hash, Buffer.from(sgx_root_cert));
         if (result) {
