@@ -31,7 +31,6 @@ export class RemoteAttestor {
         }
         if (typeof report === 'string') {
             try {
-            console.log("[debug] string report:",report)
                 input_data = JSON.parse(report) as VerifyData;
             } catch (error) {
                 console.error('Error parsing report string:', error);
@@ -42,6 +41,7 @@ export class RemoteAttestor {
             input_data = report;
             console.log("directly assigned")
         }
+        console.log("[debug] string report:",report)
 
         //console.log('input_data:', input_data);
         let json_data = input_data.tee_return_data;
@@ -60,7 +60,7 @@ export class RemoteAttestor {
             return false;
         }
         const {keyInfo , appHash} = app_user_data
-        console.log("[verifyReport] keyInfo",keyInfo)
+        console.log("[verifyReport] keyInfo",keyInfo.public_key)
         this.appendLog(`Key Info: ${JSON.stringify(keyInfo, null, 2)}`);
         // verify TEE Report
         const result = this.verifyReportStepByStep(tee_report_buffer, appHash, Buffer.from(sgx_root_cert));
