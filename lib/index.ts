@@ -31,6 +31,7 @@ export class RemoteAttestor {
         }
         if (typeof report === 'string') {
             try {
+            console.log("[debug] string report:",report)
                 input_data = JSON.parse(report) as VerifyData;
             } catch (error) {
                 console.error('Error parsing report string:', error);
@@ -51,7 +52,6 @@ export class RemoteAttestor {
 
         const key_shard_pkg = json_data.key_shard_pkg;
         const json_pubkey_list_hash = json_data.pubkey_list_hash;
-
         // get User Data
         let private_key = input_data.private_key;
         const app_user_data = this.getAppReportHash(key_shard_pkg, json_pubkey_list_hash, private_key);
@@ -143,7 +143,7 @@ export class RemoteAttestor {
 
         const key_info = JSON.parse(plain_buffer.toString());
         this.appendLog("key_info: " + JSON.stringify(key_info, null, 2));
-
+        key_info.public_key = key_shard_pkg[index].public_key
 // Log each property of key_info individually
         this.appendLog("key_meta: " + JSON.stringify(key_info.key_meta, null, 2));
         this.appendLog("key_shard: " + JSON.stringify(key_info.key_shard, null, 2));
