@@ -41,7 +41,7 @@ export class RemoteAttestor {
             input_data = report;
             console.log("directly assigned")
         }
-        console.log("[debug] string report:",report)
+        this.appendLog("[debug] =====> string report:"+report)
 
         //console.log('input_data:', input_data);
         let json_data = input_data.tee_return_data;
@@ -59,16 +59,16 @@ export class RemoteAttestor {
             this.appendLog("Verify TEE Report failed!\n");
             return false;
         }
-        const {key_info , appHash, public_key} = app_user_data
+        const {key_info , app_hash, public_key} = app_user_data
         this.appendLog(`Key Info: ${JSON.stringify(key_info, null, 2)}`);
         // verify TEE Report
-        const result = this.verifyReportStepByStep(tee_report_buffer, appHash, Buffer.from(sgx_root_cert));
+        const result = this.verifyReportStepByStep(tee_report_buffer, app_hash, Buffer.from(sgx_root_cert));
         if (result) {
             this.appendLog("Verify TEE Report successfully!\n");
         } else {
             this.appendLog("Verify TEE Report failed!\n");
         }
-        return {success:true,key_info,appHash:appHash,public_key}
+        return {success:true,key_info,app_hash,public_key}
        }
 
     public exportLog(): string {
@@ -142,7 +142,9 @@ export class RemoteAttestor {
 
         const key_info = JSON.parse(plain_buffer.toString());
         const public_key = key_shard_pkg[index].public_key
-        console.log("public_key: ",public_key);
+        this.appendLog("*************************************************************************************************************");
+        this.appendLog("public_key: "+ public_key);
+        this.appendLog("*************************************************************************************************************");
 
 // Log each property of key_info individually
         // this.appendLog("key_meta: " + JSON.stringify(key_info.key_meta, null, 2));
@@ -176,8 +178,8 @@ export class RemoteAttestor {
         this.appendLog("1. The public key list hash has been verified successfully!\n");
 
         // hash the concatenation of public key list hash and key meta hash
-        let appHash = this.sha256Digest(Buffer.concat([Buffer.from(pubkey_list_hash, 'hex'), Buffer.from(key_meta_hash, 'hex')]), 'hex')
-        return {success:true,key_info,appHash,public_key}
+        let app_hash = this.sha256Digest(Buffer.concat([Buffer.from(pubkey_list_hash, 'hex'), Buffer.from(key_meta_hash, 'hex')]), 'hex')
+        return {success:true,key_info,app_hash,public_key}
     }
 
     private getQeReportHash(tee_report_buffer) {
