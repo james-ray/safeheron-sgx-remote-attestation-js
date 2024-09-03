@@ -59,8 +59,7 @@ export class RemoteAttestor {
             this.appendLog("Verify TEE Report failed!\n");
             return false;
         }
-        const {keyInfo , appHash} = app_user_data
-        console.log("[verifyReport] keyInfo",keyInfo.public_key)
+        const {keyInfo , appHash, publicKey} = app_user_data
         this.appendLog(`Key Info: ${JSON.stringify(keyInfo, null, 2)}`);
         // verify TEE Report
         const result = this.verifyReportStepByStep(tee_report_buffer, appHash, Buffer.from(sgx_root_cert));
@@ -69,7 +68,7 @@ export class RemoteAttestor {
         } else {
             this.appendLog("Verify TEE Report failed!\n");
         }
-        return {success:true,keyInfo:keyInfo,appHash:appHash}
+        return {success:true,keyInfo,appHash:appHash,publicKey}
        }
 
     public exportLog(): string {
@@ -143,7 +142,7 @@ export class RemoteAttestor {
 
         const key_info = JSON.parse(plain_buffer.toString());
         this.appendLog("key_info: " + JSON.stringify(key_info, null, 2));
-        key_info.public_key = key_shard_pkg[index].public_key
+        const public_key = key_shard_pkg[index].public_key
 // Log each property of key_info individually
         this.appendLog("key_meta: " + JSON.stringify(key_info.key_meta, null, 2));
         this.appendLog("key_shard: " + JSON.stringify(key_info.key_shard, null, 2));
@@ -177,7 +176,7 @@ export class RemoteAttestor {
 
         // hash the concatenation of public key list hash and key meta hash
         let appHash = this.sha256Digest(Buffer.concat([Buffer.from(pubkey_list_hash, 'hex'), Buffer.from(key_meta_hash, 'hex')]), 'hex')
-        return {success:true,keyInfo:key_info,appHash}
+        return {success:true,keyInfo:key_info,appHash,publicKey:public_key}
     }
 
     private getQeReportHash(tee_report_buffer) {
