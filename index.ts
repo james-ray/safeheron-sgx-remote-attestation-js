@@ -60,7 +60,7 @@ app.post('/decrypt-key-shard', async (req: Request, res: Response) => {
         //     return decrypted.toString('hex');
         // });
 
-        //res.json({ decrypted_shards });
+        res.json({ success });
         res.status(200).send("ok");
     } catch (error) {
         console.error('Error during decryption:', error);
