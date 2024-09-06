@@ -57,7 +57,7 @@ export class RemoteAttestor {
             this.appendLog("Verify TEE Report failed!\n");
             return false;
         }
-        const {key_info , app_hash, public_key} = app_user_data
+        const {key_info, app_hash, public_key} = app_user_data
         // verify TEE Report
         const result = this.verifyReportStepByStep(tee_report_buffer, app_hash, Buffer.from(sgx_root_cert));
         if (result) {
@@ -65,8 +65,8 @@ export class RemoteAttestor {
         } else {
             this.appendLog("Verify TEE Report failed!\n");
         }
-        return {success:true,key_info,app_hash,public_key}
-       }
+        return {success: true, key_info, app_hash, public_key}
+    }
 
     public exportLog(): string {
         return this.logInfo
@@ -140,24 +140,21 @@ export class RemoteAttestor {
         const key_info = JSON.parse(plain_buffer.toString());
         const public_key = key_shard_pkg[index].public_key
         this.appendLog("*************************************************************************************************************");
-        this.appendLog("public_key: "+ public_key);
+        this.appendLog("public_key: " + public_key);
         this.appendLog("*************************************************************************************************************");
 
-// Log each property of key_info individually
-        // this.appendLog("key_meta: " + JSON.stringify(key_info.key_meta, null, 2));
-        // this.appendLog("key_shard: " + JSON.stringify(key_info.key_shard, null, 2));
 
 // Log each property of key_meta individually
-        // this.appendLog("key_meta.k: " + key_info.key_meta.k);
-        // this.appendLog("key_meta.l: " + key_info.key_meta.l);
-        // this.appendLog("key_meta.vkv: " + key_info.key_meta.vkv);
-        // this.appendLog("key_meta.vku: " + key_info.key_meta.vku);
-        // this.appendLog("key_meta.vkiArr: " + JSON.stringify(key_info.key_meta.vkiArr, null, 2));
+        this.appendLog("key_meta.k: " + key_info.key_meta.k);
+        this.appendLog("key_meta.l: " + key_info.key_meta.l);
+        this.appendLog("key_meta.vkv: " + key_info.key_meta.vkv);
+        this.appendLog("key_meta.vku: " + key_info.key_meta.vku);
+        this.appendLog("key_meta.vkiArr: " + JSON.stringify(key_info.key_meta.vkiArr, null, 2));
 
 // Log each property of key_shard individually
-        // this.appendLog("key_shard.index: " + key_info.key_shard.index);
-        // this.appendLog("key_shard.private_key_shard: " + key_info.key_shard.private_key_shard);
-        
+        this.appendLog("key_shard.index: " + key_info.key_shard.index);
+        this.appendLog("key_shard.private_key_shard: " + key_info.key_shard.private_key_shard);
+
         // get key meta hash
         key_meta_hash = this.getKeyMetaHash(key_info, 'key_meta');
 
@@ -176,7 +173,7 @@ export class RemoteAttestor {
 
         // hash the concatenation of public key list hash and key meta hash
         let app_hash = this.sha256Digest(Buffer.concat([Buffer.from(pubkey_list_hash, 'hex'), Buffer.from(key_meta_hash, 'hex')]), 'hex')
-        return {success:true,key_info,app_hash,public_key}
+        return {success: true, key_info, app_hash, public_key}
     }
 
     private getQeReportHash(tee_report_buffer) {
