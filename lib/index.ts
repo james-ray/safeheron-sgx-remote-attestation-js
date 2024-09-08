@@ -56,7 +56,9 @@ export class RemoteAttestor {
             Buffer.from(rsa_public_key.n, 'hex')
         ]), 'hex');
 
-        const qe_report_hash = this.getQeReportHash(tee_report);
+        let tee_report_bytes = UrlBase64.toBytes(tee_report);
+        let tee_report_buffer = Buffer.from(tee_report_bytes);
+        const qe_report_hash = this.getQeReportHash(tee_report_buffer);
 
         const combined_hash = this.sha256Digest(Buffer.concat([
             Buffer.from(pubkey_list_hash, 'hex'),
