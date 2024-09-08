@@ -2,19 +2,24 @@
 
 'use strict'
 import * as BN from "bn.js"
-import { ECIES } from '@safeheron/crypto-ecies'
+import {ECIES} from '@safeheron/crypto-ecies'
 import * as elliptic from "elliptic"
 import * as crypto from "crypto"
-import { UrlBase64 } from "@safeheron/crypto-utils"
+import {UrlBase64} from "@safeheron/crypto-utils"
 import * as cryptoJS from "crypto-js"
-import { Certificate } from '@fidm/x509'
-import { VerifyData } from "./interface";
-import { Buffer } from "buffer";
+import {Certificate} from '@fidm/x509'
+import {VerifyData} from "./interface";
+import {Buffer} from "buffer";
 
 const P256 = new elliptic.ec('p256')
 // Define the key length and salt length
 const key_bits_length = 1024;
 const salt_length = crypto.constants.RSA_PSS_SALTLEN_AUTO;
+
+enum SaltLength {
+    AutoLength,
+    EqualToHash
+}
 
 export class RemoteAttestor {
     private logInfo: string
@@ -23,22 +28,39 @@ export class RemoteAttestor {
         this.logInfo = ""
     }
 
-    // EMSA-PSS encoding function
-    public encodeEMSA_PSS(message: Buffer, keyBitsLength: number, saltLength: number): Buffer {
-        const hash = crypto.createHash('sha256');
-        hash.update(message);
-        const mHash = hash.digest();
+    public encodeEMSA_PSS(message: string, keyBits: number, saltLength: SaltLength): string {
+        const emBits = keyBits - 1;
+        const emLen = Math.ceil(emBits / 8);
 
-        const emLen = Math.ceil((keyBitsLength - 1) / 8);
-        const salt = crypto.randomBytes(saltLength);
-        const mPrime = Buffer.concat([Buffer.alloc(8, 0), mHash, salt]);
+        if (emLen < 32 + 2) {
+            throw new Error("emLen < 32 + 2");
+        }
 
-        const hashPrime = crypto.createHash('sha256');
-        hashPrime.update(mPrime);
-        const H = hashPrime.digest();
+        let sLen;
+        switch (saltLength) {
+            case SaltLength.AutoLength:
+                sLen = emLen - 2 - 32;
+                break;
+            case SaltLength.EqualToHash:
+            default:
+                sLen = 32;
+                break;
+        }
 
-        const PS = Buffer.alloc(emLen - saltLength - H.length - 2, 0);
-        const DB = Buffer.concat([PS, Buffer.alloc(1, 1), salt]);
+        const mHash = crypto.createHash('sha256').update(message).digest();
+
+        if (emLen < 32 + sLen + 2) {
+            throw new Error("emLen error: KeyBitLength is too short.");
+        }
+
+        const salt = sLen > 0 ? crypto.randomBytes(sLen) : Buffer.alloc(0);
+
+        const padding1 = Buffer.alloc(8, 0x00);
+        const mPrime = Buffer.concat([padding1, mHash, salt]);
+        const H = crypto.createHash('sha256').update(mPrime).digest();
+
+        const PS = Buffer.alloc(emLen - sLen - 32 - 2, 0x00);
+        const DB = Buffer.concat([PS, Buffer.from([0x01]), salt]);
 
         const dbMask = crypto.createHash('sha256').update(H).digest();
         const maskedDB = Buffer.alloc(DB.length);
@@ -46,11 +68,17 @@ export class RemoteAttestor {
             maskedDB[i] = DB[i] ^ dbMask[i];
         }
 
-        const em = Buffer.concat([maskedDB, H, Buffer.alloc(1, 0xbc)]);
-        return em;
+        const c = 255 >> (emLen * 8 - emBits);
+        maskedDB[0] &= c;
+
+        const em = Buffer.concat([maskedDB, H, Buffer.from([0xbc])]);
+        return em.toString('hex');
     }
 
-    public combineHashes(pubkey_list_hash: string, rsa_public_key: { e: string, n: string }, tee_report: string): { combinedHash: string, encodedCombinedHash: string } {
+    public combineHashes(pubkey_list_hash: string, rsa_public_key: { e: string, n: string }, tee_report: string): {
+        combinedHash: string,
+        encodedCombinedHash: string
+    } {
         const rsa_public_key_hash = this.sha256Digest(Buffer.concat([
             Buffer.from(rsa_public_key.e, 'hex'),
             Buffer.from(rsa_public_key.n, 'hex')
@@ -66,7 +94,7 @@ export class RemoteAttestor {
             Buffer.from(qe_report_hash, 'hex')
         ]), 'hex');
 
-        const encoded_combined_hash = this.encodeEMSA_PSS(Buffer.from(combined_hash, 'hex'), 1024, crypto.constants.RSA_PSS_SALTLEN_AUTO).toString('hex');
+        const encoded_combined_hash = this.encodeEMSA_PSS(combined_hash, 1024, SaltLength.AutoLength);
 
         return { combinedHash: combined_hash, encodedCombinedHash: encoded_combined_hash };
     }
@@ -100,7 +128,7 @@ export class RemoteAttestor {
         // get User Data
         let private_key = input_data.private_key;
         const app_user_data = this.getAppReportHash(key_shard_pkg, json_pubkey_list_hash, private_key);
-        const { success, key_info, app_hash, public_key } = app_user_data;
+        const {success, key_info, app_hash, public_key} = app_user_data;
         if (!success) {
             throw new Error('App report hash generation failed');
         }
@@ -108,7 +136,7 @@ export class RemoteAttestor {
         // verify TEE Report
         const result = this.verifyReportStepByStep(tee_report_buffer, app_hash, Buffer.from(sgx_root_cert));
         if (result) {
-            return { success: true, key_info, app_hash, public_key }
+            return {success: true, key_info, app_hash, public_key}
         }
     }
 
@@ -148,7 +176,7 @@ export class RemoteAttestor {
 
     // get the public key list hash
     private sha256DigestArray(messages) {
-        let sha256 = cryptoJS.algo.SHA256.create({ asBytes: true });
+        let sha256 = cryptoJS.algo.SHA256.create({asBytes: true});
         for (let m in messages) {
             sha256.update(messages[m]);
         }
@@ -156,7 +184,12 @@ export class RemoteAttestor {
         return digest.toString(cryptoJS.enc.Hex);
     }
 
-    private getAppReportHash(key_shard_pkg, json_pubkey_list_hash, private_key): { success: boolean; key_info?: any; app_hash?: string; public_key?: any } {
+    private getAppReportHash(key_shard_pkg, json_pubkey_list_hash, private_key): {
+        success: boolean;
+        key_info?: any;
+        app_hash?: string;
+        public_key?: any
+    } {
         let hashList = [];
         let key_meta_hash;
         let plain_buffer;
@@ -171,7 +204,7 @@ export class RemoteAttestor {
         }
 
         if (index === undefined) {
-            return { success: false };
+            return {success: false};
         }
 
         // 1. decrypt the value of 'encrypt_key_info' using the corresponding private key
@@ -209,13 +242,13 @@ export class RemoteAttestor {
         this.appendLog("*************************************************************************************************************");
 
         if (pubkey_list_hash != json_pubkey_list_hash) {
-            return { success: false };
+            return {success: false};
         }
         this.appendLog("1. The public key list hash has been verified successfully!\n");
 
         // hash the concatenation of public key list hash and key meta hash
         let app_hash = this.sha256Digest(Buffer.concat([Buffer.from(pubkey_list_hash, 'hex'), Buffer.from(key_meta_hash, 'hex')]), 'hex')
-        return { success: true, key_info, app_hash, public_key }
+        return {success: true, key_info, app_hash, public_key}
     }
 
     private getQeReportHash(tee_report_buffer) {
