@@ -1,7 +1,7 @@
 import * as express from 'express';
 import { Request, Response } from 'express';
 import BN from 'bn.js';
-import { RemoteAttestor } from './lib';
+import HashUtils, { RemoteAttestor } from './lib';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
 
@@ -17,9 +17,8 @@ app.post('/webhook', async (req: Request, res: Response) => {
     try {
         // Log the entire request body for debugging
         console.log('Request body:', req.body);
-
         const { pubkey_list_hash, rsa_public_key, tee_report } = req.body;
-        const { combinedHash, encodedCombinedHash } = attestor.combineHashes(pubkey_list_hash, rsa_public_key, tee_report);
+        const { combinedHash, encodedCombinedHash } = HashUtils.combineHashes(pubkey_list_hash, rsa_public_key, tee_report);
 
         // Add the hashes to the request body
         req.body.combinedHash = combinedHash;
@@ -61,7 +60,7 @@ app.post('/decrypt-key-shard', async (req: Request, res: Response) => {
         }
 
         // Compute the combined hash
-        const { combinedHash } = attestor.combineHashes(pubkey_list_hash, rsa_public_key, tee_report);
+        const { combinedHash,_ } = HashUtils.combineHashes(pubkey_list_hash, rsa_public_key, tee_report);
 
         // Add the combined hash to the response JSON
         res.status(200).json({ success, combinedHash });

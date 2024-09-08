@@ -4,44 +4,61 @@
 import * as BN from "bn.js"
 import { ECIES } from '@safeheron/crypto-ecies'
 import * as elliptic from "elliptic"
-import * as CryptoLib from "crypto"
 import { UrlBase64 } from "@safeheron/crypto-utils"
 import * as cryptoJS from "crypto-js"
 import { Certificate } from '@fidm/x509'
 import { VerifyData } from "./interface";
 import { Buffer } from "buffer";
-import crypto from 'crypto';
+import { createHash, randomBytes, constants } from 'crypto'; // Correct the import statement
+
 
 const P256 = new elliptic.ec('p256')
 // Define the key length and salt length
 const key_bits_length = 1024;
 const salt_length = crypto.constants.RSA_PSS_SALTLEN_AUTO;
 
-export class RemoteAttestor {
-    private logInfo: string
-
-    public constructor() {
-        this.logInfo = ""
+class HashUtils {
+    static sha256Digest(message: Buffer, encoding: 'hex' | 'base64' | 'binary'): string {
+        return createHash('sha256').update(message).digest(encoding);
     }
 
-    // EMSA-PSS encoding function
-    public encodeEMSA_PSS(message: Buffer, keyBitsLength: number, saltLength: number): Buffer {
-        const hash = crypto.createHash('sha256');
+    static getQeReportHash(tee_report_buffer) {
+        // the size and offset attestation public key
+        let attest_public_key_offset = 0x1f4;
+        let attest_public_key_size = 0x40;
+
+        // the offset of authentication data structure
+        let auth_data_struct_offset = 0x3f4;
+
+        // the size and offset of authentication data
+        let auth_data_len = tee_report_buffer.readUInt16LE(auth_data_struct_offset);
+        let auth_data_offset = auth_data_struct_offset + 2;
+
+        // get the attestation public key and authentication data
+        let attest_public_key = tee_report_buffer.slice(attest_public_key_offset, attest_public_key_offset + attest_public_key_size);
+        let auth_data = tee_report_buffer.slice(auth_data_offset, auth_data_offset + auth_data_len);
+
+        // hash the concatenation of the attestation public key and authentication data
+        return this.sha256Digest(Buffer.concat([attest_public_key, auth_data]), 'hex');
+    }
+
+    static encodeEMSA_PSS(message: Buffer, keyBitsLength: number, saltLength: number): Buffer {
+        const hash = createHash('sha256');
         hash.update(message);
         const mHash = hash.digest();
 
         const emLen = Math.ceil((keyBitsLength - 1) / 8);
-        const salt = crypto.randomBytes(saltLength);
+        const salt = randomBytes(saltLength);
         const mPrime = Buffer.concat([Buffer.alloc(8, 0), mHash, salt]);
 
-        const hashPrime = crypto.createHash('sha256');
+        const hashPrime = createHash('sha256');
         hashPrime.update(mPrime);
         const H = hashPrime.digest();
 
         const PS = Buffer.alloc(emLen - saltLength - H.length - 2, 0);
         const DB = Buffer.concat([PS, Buffer.alloc(1, 1), salt]);
 
-        const dbMask = crypto.createHash('sha256').update(H).digest();
+        const dbMask = createHash('sha256').update(H).digest();
         const maskedDB = Buffer.alloc(DB.length);
         for (let i = 0; i < DB.length; i++) {
             maskedDB[i] = DB[i] ^ dbMask[i];
@@ -51,7 +68,7 @@ export class RemoteAttestor {
         return em;
     }
 
-    public combineHashes(pubkey_list_hash: string, rsa_public_key: { e: string, n: string }, tee_report: string): { combinedHash: string, encodedCombinedHash: string } {
+    static combineHashes(pubkey_list_hash: string, rsa_public_key: { e: string, n: string }, tee_report: string): { combinedHash: string, encodedCombinedHash: string } {
         const rsa_public_key_hash = this.sha256Digest(Buffer.concat([
             Buffer.from(rsa_public_key.e, 'hex'),
             Buffer.from(rsa_public_key.n, 'hex')
@@ -65,9 +82,19 @@ export class RemoteAttestor {
             Buffer.from(qe_report_hash, 'hex')
         ]), 'hex');
 
-        const encoded_combined_hash = this.encodeEMSA_PSS(Buffer.from(combined_hash, 'hex'), 1024, crypto.constants.RSA_PSS_SALTLEN_AUTO).toString('hex');
+        const encoded_combined_hash = this.encodeEMSA_PSS(Buffer.from(combined_hash, 'hex'), 1024, constants.RSA_PSS_SALTLEN_AUTO).toString('hex');
 
         return { combinedHash: combined_hash, encodedCombinedHash: encoded_combined_hash };
+    }
+}
+
+export default HashUtils;
+
+export class RemoteAttestor {
+    private logInfo: string
+
+    public constructor() {
+        this.logInfo = ""
     }
 
     public verifyReport(report: string | VerifyData, sgx_root_cert: string | Buffer): any {
@@ -216,26 +243,6 @@ export class RemoteAttestor {
         return { success: true, key_info, app_hash, public_key }
     }
 
-    private getQeReportHash(tee_report_buffer) {
-        // the size and offset attestation public key
-        let attest_public_key_offset = 0x1f4;
-        let attest_public_key_size = 0x40;
-
-        // the offset of authentication data structure
-        let auth_data_struct_offset = 0x3f4;
-
-        // the size and offset of authentication data
-        let auth_data_len = tee_report_buffer.readUInt16LE(auth_data_struct_offset);
-        let auth_data_offset = auth_data_struct_offset + 2;
-
-        // get the attestation public key and authentication data
-        let attest_public_key = tee_report_buffer.slice(attest_public_key_offset, attest_public_key_offset + attest_public_key_size);
-        let auth_data = tee_report_buffer.slice(auth_data_offset, auth_data_offset + auth_data_len);
-
-        // hash the concatenation of the attestation public key and authentication data
-        return this.sha256Digest(Buffer.concat([attest_public_key, auth_data]), 'hex');
-    }
-
     private verifyCertChain(tee_report_buffer, sgx_root_cert: Buffer) {
         // the offset of authentication data structure
         let auth_data_struct_offset = 0x3f4;
@@ -355,7 +362,7 @@ export class RemoteAttestor {
         }
         this.appendLog("4. The QE report signature has been verified successfully!\n");
 
-        const qe_report_hash = this.getQeReportHash(tee_report_buffer);
+        const qe_report_hash = HashUtils.getQeReportHash(tee_report_buffer);
 
         // define the offset and size of App Report Data and QE Report Data
         let app_report_data_offset = 0x170;
