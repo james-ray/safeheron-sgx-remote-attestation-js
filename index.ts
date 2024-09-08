@@ -52,19 +52,19 @@ app.post('/decrypt-key-shard', async (req: Request, res: Response) => {
 
         // Pass the wrapped structure to verifyReport
         const attestor = new RemoteAttestor();
-        const success = attestor.verifyReport(req.body, sgx_root_cert);
-        console.log('Verification success:', success);
-        console.log(attestor.exportLog());
-
+        const resJson = attestor.verifyReport(req.body, sgx_root_cert);
+        const {success} = resJson;
         if (!success) {
             throw new Error('Verification failed');
         }
+        console.log('Verification success:', success);
+        console.log(attestor.exportLog());
 
         // Compute the combined hash
         const { combined_hash } = attestor.combineHashes(pubkey_list_hash, rsa_public_key, tee_report);
-
+        resJson.combined_hash = combined_hash
         // Add the combined hash to the response JSON
-        res.status(200).json({ success, combined_hash });
+        res.status(200).json(resJson);
     } catch (error) {
         console.error('Error during decryption:', error);
         res.status(500).send(`Decryption failed: ${(error as Error).message}`);
