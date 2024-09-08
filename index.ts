@@ -61,10 +61,10 @@ app.post('/decrypt-key-shard', async (req: Request, res: Response) => {
         }
 
         // Compute the combined hash
-        const { combinedHash } = attestor.combineHashes(pubkey_list_hash, rsa_public_key, tee_report);
+        const { combined_hash } = attestor.combineHashes(pubkey_list_hash, rsa_public_key, tee_report);
 
         // Add the combined hash to the response JSON
-        res.status(200).json({ success, combinedHash });
+        res.status(200).json({ success, combined_hash });
     } catch (error) {
         console.error('Error during decryption:', error);
         res.status(500).send(`Decryption failed: ${(error as Error).message}`);
