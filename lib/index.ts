@@ -107,13 +107,21 @@ export class RemoteAttestor {
 
         // Check if report is not null or undefined
         if (report == null) {
-            throw new Error('Report is null or undefined');
+            console.error('Error: report is null or undefined');
+            return false
         }
 
         if (typeof report === 'string') {
-            input_data = JSON.parse(report);
+            try {
+                input_data = JSON.parse(report) as VerifyData;
+            } catch (error) {
+                console.error('Error parsing report string:', error);
+                return false;
+            }
+            //console.log('after parse: input_data:', input_data);
         } else {
             input_data = report;
+            console.log("directly assigned")
         }
 
         //console.log('input_data:', input_data);
@@ -204,7 +212,7 @@ export class RemoteAttestor {
         }
 
         if (index === undefined) {
-            return {success: false};
+            throw new Error('Private key does not match the encrypted message!')
         }
 
         // 1. decrypt the value of 'encrypt_key_info' using the corresponding private key
@@ -290,9 +298,10 @@ export class RemoteAttestor {
         let u = 0;
         let tmp;
         for (let t = 0; t < 2; t++) {
-            tmp = certification_data.slice(k, k + cert_length);
-            keyCert.push(tmp);
-            k += cert_length;
+            tmp = certification_data.indexOf("-----END CERTIFICATE-----", k)
+            keyCert[t] = certification_data.slice(u, tmp + cert_length);
+            k = tmp + cert_length;
+            u = tmp + cert_length;
         }
 
         const pck_cert = Certificate.fromPEM(keyCert[0]);
@@ -301,92 +310,97 @@ export class RemoteAttestor {
 
         // verify certification chain
         let result = processor_cert.checkSignature(pck_cert) == null &&
-            pck_cert.checkSignature(sgx_root) == null;
+            sgx_root.checkSignature(processor_cert) == null &&
+            sgx_root.checkSignature(sgx_root) == null &&
+            pck_cert.isIssuer(processor_cert) == true &&
+            processor_cert.isIssuer(sgx_root) == true &&
+            sgx_root.isIssuer(sgx_root) == true;
 
         return [result, pck_cert];
     }
 
     // verify app report signature
     private verifyAppReportSig(tee_report_buffer) {
-        // the offset and size of App Report Data
-        let app_report_data_offset = 0x170;
-        let app_report_data_size = 0x20;
-
-        // get App Report Data from report
-        let app_report_data = tee_report_buffer.slice(app_report_data_offset, app_report_data_offset + app_report_data_size);
-
-        // hash the App Report Data
-        let hash = this.sha256Digest(app_report_data, 'hex');
-
-        // the offset and size of App Report Signature
-        let app_signature_offset = 0x1f4;
+        // the size and the offset of signature and attestation public key
+        let app_signature_offset = 0x1b4;
         let app_signature_size = 0x40;
+        let attest_public_key_offset = 0x1f4;
+        let attest_public_key_size = 0x40;
 
-        // get App Report Signature from report
+        let ecdsa = new elliptic.ec('p256');
+
+        // hash report header and app report
+        // convert it to BN
+        let header_and_report = tee_report_buffer.slice(0, 432);
+        let hash = new BN(this.sha256Digest(header_and_report, 'hex'), 16);
+
+        // get ISV enclave report signature
         let signature = tee_report_buffer.slice(app_signature_offset, app_signature_offset + app_signature_size);
-
-        // verify the signature
         let sig = {
             r: signature.slice(0, 32).toString('hex'),
-            s: signature.slice(32, 64).toString('hex')
+            s: signature.slice(32, 64).toString('hex'),
         };
 
-        // get the public key from the report
-        let pub = P256.keyFromPublic(tee_report_buffer.slice(0x1f4, 0x1f4 + 0x40).toString('hex'), 'hex');
+        // convert attestation public key to a point on curve P256
+        let attest_public_key = tee_report_buffer.slice(attest_public_key_offset, attest_public_key_offset + attest_public_key_size);
+        let x = new BN(attest_public_key.slice(0, 32).toString('hex'), 16);
+        let y = new BN(attest_public_key.slice(32, 64).toString('hex'), 16);
+        let pub = P256.curve.point(x, y);
 
         // return the verification result
-        return P256.verify(hash, sig, pub);
+        return ecdsa.verify(hash, sig, pub);
     }
 
-    // verify qe report signature
+// verify qe report signature
     private verifyQeReportSig(tee_report_buffer, pck_cert) {
-        // the offset and size of QE Report Data
-        let qe_report_data_offset = 0x374;
-        let qe_report_data_size = 0x20;
-
-        // get QE Report Data from report
-        let qe_report_data = tee_report_buffer.slice(qe_report_data_offset, qe_report_data_offset + qe_report_data_size);
-
-        // hash the QE Report Data
-        let hash = this.sha256Digest(qe_report_data, 'hex');
-
-        // the offset and size of QE Report Signature
-        let qe_signature_offset = 0x394;
+        // the size and the offset of the signature and attestation public key
+        let qe_report_offset = 0x234;
+        let qe_report_size = 0x180;
+        let qe_signature_offset = 0x3b4;
         let qe_signature_size = 0x40;
 
-        // get QE Report Signature from report
+        let ecdsa = new elliptic.ec('p256');
+
+        // hash QE report
+        // convert it to BN
+        let hash = new BN(this.sha256Digest(tee_report_buffer.slice(qe_report_offset, qe_report_offset + qe_report_size), 'hex'), 16);
+
+        // get QE report signature
         let signature = tee_report_buffer.slice(qe_signature_offset, qe_signature_offset + qe_signature_size);
         let sig = {
             r: signature.slice(0, 32).toString('hex'),
-            s: signature.slice(32, 64).toString('hex')
+            s: signature.slice(32, 64).toString('hex'),
         };
 
         // get the public key from pckCert and convert it to a point on the elliptic curve
-        let pub = P256.keyFromPublic(pck_cert.publicKey.keyRaw.toString('hex'), 'hex');
+        let pub = ecdsa.keyFromPublic(pck_cert.publicKey.keyRaw.toString('hex'), 'hex');
 
         // return the verification result
-        return P256.verify(hash, sig, pub);
+        return ecdsa.verify(hash, sig, pub);
     };
 
     private verifyReportStepByStep(tee_report_buffer: Buffer, app_user_data, sgx_root_cert: Buffer) {
 
         const [cert_chain_result, pck_cert] = this.verifyCertChain(tee_report_buffer, sgx_root_cert);
         if (cert_chain_result !== true) {
-            throw new Error('Cert chain verification failed');
+            this.appendLog("Verify cert chain failed!\n");
+            return false;
         }
         this.appendLog("2. The cert chain has been verified successfully!\n");
 
         // verify App report signature
         const verify_app_result = this.verifyAppReportSig(tee_report_buffer);
         if (verify_app_result !== true) {
-            throw new Error('App report signature verification failed');
+            this.appendLog("Verify App report signature failed!\n");
+            return false;
         }
         this.appendLog("3. The App report signature has been verified successfully!\n");
 
         // verify QE report signature
         const verify_qe_result = this.verifyQeReportSig(tee_report_buffer, pck_cert);
         if (verify_qe_result !== true) {
-            throw new Error('QE report signature verification failed');
+            this.appendLog("Verify QE report signature failed!\n");
+            return false;
         }
         this.appendLog("4. The QE report signature has been verified successfully!\n");
 
@@ -413,12 +427,14 @@ export class RemoteAttestor {
 
         // verify user data
         if (app_user_data !== app_report_data) {
-            throw new Error('User data verification failed');
+            this.appendLog("Verify App report data failed!\n");
+            return false;
         }
         this.appendLog("5. User Data has been verified successfully!\n");
 
         if (qe_report_hash !== qe_report_data) {
-            throw new Error('QE report data verification failed');
+            this.appendLog("Verify QE report data failed!\n");
+            return false;
         }
         this.appendLog("6. QE Report Data has been verified successfully!\n");
 
