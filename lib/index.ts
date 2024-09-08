@@ -62,7 +62,7 @@ export class RemoteAttestor {
         const PS = Buffer.alloc(emLen - sLen - 32 - 2, 0x00);
         const DB = Buffer.concat([PS, Buffer.from([0x01]), salt]);
 
-        const dbMask = crypto.createHash('sha256').update(H).digest();
+        const dbMask = this.mgf1(H, emLen - 32 - 1);
         const maskedDB = Buffer.alloc(DB.length);
         for (let i = 0; i < DB.length; i++) {
             maskedDB[i] = DB[i] ^ dbMask[i];
@@ -73,6 +73,22 @@ export class RemoteAttestor {
 
         const em = Buffer.concat([maskedDB, H, Buffer.from([0xbc])]);
         return em.toString('hex');
+    }
+
+    public mgf1(seed: Buffer, maskLen: number): Buffer {
+        const hLen = 32; // SHA-256 output size
+        const count = Math.ceil(maskLen / hLen);
+        const mask = Buffer.alloc(maskLen);
+
+        for (let i = 0; i < count; i++) {
+            const hasher = crypto.createHash('sha256');
+            hasher.update(seed);
+            hasher.update(Buffer.from([(i >> 24) & 0xff, (i >> 16) & 0xff, (i >> 8) & 0xff, i & 0xff]));
+            const hash = hasher.digest();
+            hash.copy(mask, i * hLen);
+        }
+
+        return mask.slice(0, maskLen);
     }
 
     public combineHashes(pubkey_list_hash: string, rsa_public_key: { e: string, n: string }, tee_report: string): {
