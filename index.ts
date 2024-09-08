@@ -19,18 +19,18 @@ app.post('/webhook', async (req: Request, res: Response) => {
         //console.log('Request body:', req.body);
         const attestor = new RemoteAttestor();
         const { pubkey_list_hash, rsa_public_key, tee_report } = req.body;
-        const { combinedHash, encodedCombinedHash } = attestor.combineHashes(pubkey_list_hash, rsa_public_key, tee_report);
+        const { combined_hash, encoded_combined_hash } = attestor.combineHashes(pubkey_list_hash, rsa_public_key, tee_report);
 
         // Add the hashes to the request body
-        req.body.combined_hash = combinedHash;
-        req.body.encoded_combined_hash = encodedCombinedHash;
+        req.body.combined_hash = combined_hash;
+        req.body.encoded_combined_hash = encoded_combined_hash;
 
         // Print out the hashes
-        //console.log('Combined Hash:', combinedHash);
-        //console.log('Encoded Combined Hash:', encodedCombinedHash);
+        //console.log('Combined Hash:', combined_hash);
+        //console.log('Encoded Combined Hash:', encoded_combined_hash);
         console.log(req.body);
 
-        res.json({ success: true, combinedHash, encodedCombinedHash });
+        res.json({ success: true, combined_hash, encoded_combined_hash });
     } catch (error) {
         console.error('Error during logging:', error);
         res.status(500).send(`Logging failed: ${(error as Error).message}`);

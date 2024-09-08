@@ -76,8 +76,8 @@ export class RemoteAttestor {
     }
 
     public combineHashes(pubkey_list_hash: string, rsa_public_key: { e: string, n: string }, tee_report: string): {
-        combinedHash: string,
-        encodedCombinedHash: string
+        combined_hash: string,
+        encoded_combined_hash: string
     } {
         const rsa_public_key_hash = this.sha256Digest(Buffer.concat([
             Buffer.from(rsa_public_key.e, 'hex'),
