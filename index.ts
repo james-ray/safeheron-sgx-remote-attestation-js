@@ -18,7 +18,19 @@ app.post('/webhook', async (req: Request, res: Response) => {
         // Log the entire request body for debugging
         console.log('Request body:', req.body);
 
-        res.send('Request logged successfully.');
+        const { pubkey_list_hash, rsa_public_key, tee_report } = req.body;
+        const { combinedHash, encodedCombinedHash } = attestor.combineHashes(pubkey_list_hash, rsa_public_key, tee_report);
+
+        // Add the hashes to the request body
+        req.body.combinedHash = combinedHash;
+        req.body.encodedCombinedHash = encodedCombinedHash;
+
+        // Print out the hashes
+        console.log('Combined Hash:', combinedHash);
+        console.log('Encoded Combined Hash:', encodedCombinedHash);
+        console.log(req.body);
+
+        res.json({ success: true, combinedHash, encodedCombinedHash });
     } catch (error) {
         console.error('Error during logging:', error);
         res.status(500).send(`Logging failed: ${(error as Error).message}`);
@@ -26,6 +38,7 @@ app.post('/webhook', async (req: Request, res: Response) => {
     console.timeEnd('attestation');
 });
 
+// Modify the handler for /decrypt-key-shard
 app.post('/decrypt-key-shard', async (req: Request, res: Response) => {
     console.time('decrypt-key-shard');
     try {
@@ -33,6 +46,9 @@ app.post('/decrypt-key-shard', async (req: Request, res: Response) => {
 
         // Log the entire request body for debugging
         console.log('Request body:', req.body);
+
+        // Extract necessary fields
+        const { pubkey_list_hash, rsa_public_key, tee_report } = req.body.tee_return_data;
 
         // Pass the wrapped structure to verifyReport
         const attestor = new RemoteAttestor();
@@ -44,23 +60,11 @@ app.post('/decrypt-key-shard', async (req: Request, res: Response) => {
             throw new Error('Verification failed');
         }
 
-        // const { tee_return_data, private_key } = req.body;
-        // const { key_shard_pkg } = tee_return_data;
-        //
-        // // Decrypt each key shard
-        // const decrypted_shards = key_shard_pkg.map((shard: any) => {
-        //     const buffer = Buffer.from(shard.encrypt_key_info, 'hex');
-        //     const decrypted = crypto.privateDecrypt(
-        //         {
-        //             key: private_key,
-        //             padding: crypto.constants.RSA_PKCS1_PADDING,
-        //         },
-        //         buffer
-        //     );
-        //     return decrypted.toString('hex');
-        // });
+        // Compute the combined hash
+        const { combinedHash } = attestor.combineHashes(pubkey_list_hash, rsa_public_key, tee_report);
 
-        res.status(200).json(success);
+        // Add the combined hash to the response JSON
+        res.status(200).json({ success, combinedHash });
     } catch (error) {
         console.error('Error during decryption:', error);
         res.status(500).send(`Decryption failed: ${(error as Error).message}`);

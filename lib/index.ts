@@ -2,20 +2,71 @@
 import * as BN from "bn.js"
 import {ECIES} from '@safeheron/crypto-ecies'
 import * as elliptic from "elliptic"
-
-const P256 = new elliptic.ec('p256')
 import * as CryptoLib from "crypto"
 import {UrlBase64} from "@safeheron/crypto-utils"
 import * as cryptoJS from "crypto-js"
 import {Certificate} from '@fidm/x509'
 import {VerifyData} from "./interface";
 import {Buffer} from "buffer";
+import crypto from 'crypto';
+
+const P256 = new elliptic.ec('p256')
+// Define the key length and salt length
+const key_bits_length = 1024;
+const salt_length = crypto.constants.RSA_PSS_SALTLEN_AUTO;
 
 export class RemoteAttestor {
     private logInfo: string
 
     public constructor() {
         this.logInfo = ""
+    }
+
+
+    // EMSA-PSS encoding function
+    public function encodeEMSA_PSS(message: Buffer, keyBitsLength: number, saltLength: number): Buffer {
+        const hash = crypto.createHash('sha256');
+        hash.update(message);
+        const mHash = hash.digest();
+
+        const emLen = Math.ceil((keyBitsLength - 1) / 8);
+        const salt = crypto.randomBytes(saltLength);
+        const mPrime = Buffer.concat([Buffer.alloc(8, 0), mHash, salt]);
+
+        const hashPrime = crypto.createHash('sha256');
+        hashPrime.update(mPrime);
+        const H = hashPrime.digest();
+
+        const PS = Buffer.alloc(emLen - saltLength - H.length - 2, 0);
+        const DB = Buffer.concat([PS, Buffer.alloc(1, 1), salt]);
+
+        const dbMask = crypto.createHash('sha256').update(H).digest();
+        const maskedDB = Buffer.alloc(DB.length);
+        for (let i = 0; i < DB.length; i++) {
+            maskedDB[i] = DB[i] ^ dbMask[i];
+        }
+
+        const em = Buffer.concat([maskedDB, H, Buffer.alloc(1, 0xbc)]);
+        return em;
+    }
+
+    public function combineHashes(pubkey_list_hash: string, rsa_public_key: { e: string, n: string }, tee_report: string): { combinedHash: string, encodedCombinedHash: string } {
+        const rsa_public_key_hash = this.sha256Digest(Buffer.concat([
+            Buffer.from(rsa_public_key.e, 'hex'),
+            Buffer.from(rsa_public_key.n, 'hex')
+        ]), 'hex');
+
+        const qe_report_hash = this.getQeReportHash(tee_report);
+
+        const combined_hash = this.sha256Digest(Buffer.concat([
+            Buffer.from(pubkey_list_hash, 'hex'),
+            Buffer.from(rsa_public_key_hash, 'hex'),
+            Buffer.from(qe_report_hash, 'hex')
+        ]), 'hex');
+
+        const encoded_combined_hash = this.encodeEMSA_PSS(Buffer.from(combined_hash, 'hex'), 1024, crypto.constants.RSA_PSS_SALTLEN_AUTO).toString('hex');
+
+        return { combinedHash: combined_hash, encodedCombinedHash: encoded_combined_hash };
     }
 
     public verifyReport(report: string | VerifyData, sgx_root_cert: string | Buffer): any {
@@ -144,14 +195,14 @@ export class RemoteAttestor {
         this.appendLog("*************************************************************************************************************");
 
 
-// Log each property of key_meta individually
+        // Log each property of key_meta individually
         this.appendLog("key_meta.k: " + key_info.key_meta.k);
         this.appendLog("key_meta.l: " + key_info.key_meta.l);
         this.appendLog("key_meta.vkv: " + key_info.key_meta.vkv);
         this.appendLog("key_meta.vku: " + key_info.key_meta.vku);
         this.appendLog("key_meta.vkiArr: " + JSON.stringify(key_info.key_meta.vkiArr, null, 2));
 
-// Log each property of key_shard individually
+        // Log each property of key_shard individually
         this.appendLog("key_shard.index: " + key_info.key_shard.index);
         this.appendLog("key_shard.private_key_shard: " + key_info.key_shard.private_key_shard);
 
