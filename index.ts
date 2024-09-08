@@ -16,18 +16,18 @@ app.post('/webhook', async (req: Request, res: Response) => {
     console.time('attestation');
     try {
         // Log the entire request body for debugging
-        console.log('Request body:', req.body);
+        //console.log('Request body:', req.body);
         const attestor = new RemoteAttestor();
         const { pubkey_list_hash, rsa_public_key, tee_report } = req.body;
         const { combinedHash, encodedCombinedHash } = attestor.combineHashes(pubkey_list_hash, rsa_public_key, tee_report);
 
         // Add the hashes to the request body
-        req.body.combinedHash = combinedHash;
-        req.body.encodedCombinedHash = encodedCombinedHash;
+        req.body.combined_hash = combinedHash;
+        req.body.encoded_combined_hash = encodedCombinedHash;
 
         // Print out the hashes
-        console.log('Combined Hash:', combinedHash);
-        console.log('Encoded Combined Hash:', encodedCombinedHash);
+        //console.log('Combined Hash:', combinedHash);
+        //console.log('Encoded Combined Hash:', encodedCombinedHash);
         console.log(req.body);
 
         res.json({ success: true, combinedHash, encodedCombinedHash });

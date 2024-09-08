@@ -96,7 +96,7 @@ export class RemoteAttestor {
 
         const encoded_combined_hash = this.encodeEMSA_PSS(combined_hash, 1024, SaltLength.AutoLength);
 
-        return { combinedHash: combined_hash, encodedCombinedHash: encoded_combined_hash };
+        return { combined_hash: combined_hash, encoded_combined_hash: encoded_combined_hash };
     }
 
     public verifyReport(report: string | VerifyData, sgx_root_cert: string | Buffer): any {
@@ -118,7 +118,7 @@ export class RemoteAttestor {
 
         //console.log('input_data:', input_data);
         let json_data = input_data.tee_return_data;
-        //console.log('json_data:', json_data);
+        console.log('json_data:', json_data);
         const tee_report = json_data.tee_report;
         let tee_report_bytes = UrlBase64.toBytes(tee_report);
         let tee_report_buffer = Buffer.from(tee_report_bytes);
