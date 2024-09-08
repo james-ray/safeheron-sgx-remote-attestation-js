@@ -1,13 +1,15 @@
+// lib/index.ts
+
 'use strict'
 import * as BN from "bn.js"
-import {ECIES} from '@safeheron/crypto-ecies'
+import { ECIES } from '@safeheron/crypto-ecies'
 import * as elliptic from "elliptic"
 import * as CryptoLib from "crypto"
-import {UrlBase64} from "@safeheron/crypto-utils"
+import { UrlBase64 } from "@safeheron/crypto-utils"
 import * as cryptoJS from "crypto-js"
-import {Certificate} from '@fidm/x509'
-import {VerifyData} from "./interface";
-import {Buffer} from "buffer";
+import { Certificate } from '@fidm/x509'
+import { VerifyData } from "./interface";
+import { Buffer } from "buffer";
 import crypto from 'crypto';
 
 const P256 = new elliptic.ec('p256')
@@ -22,9 +24,8 @@ export class RemoteAttestor {
         this.logInfo = ""
     }
 
-
     // EMSA-PSS encoding function
-    public function encodeEMSA_PSS(message: Buffer, keyBitsLength: number, saltLength: number): Buffer {
+    public encodeEMSA_PSS(message: Buffer, keyBitsLength: number, saltLength: number): Buffer {
         const hash = crypto.createHash('sha256');
         hash.update(message);
         const mHash = hash.digest();
@@ -50,7 +51,7 @@ export class RemoteAttestor {
         return em;
     }
 
-    public function combineHashes(pubkey_list_hash: string, rsa_public_key: { e: string, n: string }, tee_report: string): { combinedHash: string, encodedCombinedHash: string } {
+    public combineHashes(pubkey_list_hash: string, rsa_public_key: { e: string, n: string }, tee_report: string): { combinedHash: string, encodedCombinedHash: string } {
         const rsa_public_key_hash = this.sha256Digest(Buffer.concat([
             Buffer.from(rsa_public_key.e, 'hex'),
             Buffer.from(rsa_public_key.n, 'hex')
@@ -77,21 +78,15 @@ export class RemoteAttestor {
 
         // Check if report is not null or undefined
         if (report == null) {
-            console.error('Error: report is null or undefined');
-            return false;
+            throw new Error('Report is null or undefined');
         }
+
         if (typeof report === 'string') {
-            try {
-                input_data = JSON.parse(report) as VerifyData;
-            } catch (error) {
-                console.error('Error parsing report string:', error);
-                return false;
-            }
-            //console.log('after parse: input_data:', input_data);
+            input_data = JSON.parse(report);
         } else {
             input_data = report;
-            console.log("directly assigned")
         }
+
         //console.log('input_data:', input_data);
         let json_data = input_data.tee_return_data;
         //console.log('json_data:', json_data);
@@ -104,19 +99,15 @@ export class RemoteAttestor {
         // get User Data
         let private_key = input_data.private_key;
         const app_user_data = this.getAppReportHash(key_shard_pkg, json_pubkey_list_hash, private_key);
-        if (app_user_data == false) {
-            this.appendLog("Verify TEE Report failed!\n");
-            return false;
+        if (!app_user_data.success) {
+            throw new Error('App report hash generation failed');
         }
-        const {key_info, app_hash, public_key} = app_user_data
+        const { key_info, app_hash, public_key } = app_user_data
         // verify TEE Report
         const result = this.verifyReportStepByStep(tee_report_buffer, app_hash, Buffer.from(sgx_root_cert));
         if (result) {
-            this.appendLog("Verify TEE Report successfully!\n");
-        } else {
-            this.appendLog("Verify TEE Report failed!\n");
+            return { success: true, key_info, app_hash, public_key }
         }
-        return {success: true, key_info, app_hash, public_key}
     }
 
     public exportLog(): string {
@@ -131,14 +122,14 @@ export class RemoteAttestor {
     private sha256Digest(message, encoding) {
         return CryptoLib.createHash('sha256')
             .update(message)
-            .digest(encoding)
+            .digest(encoding);
     }
 
     // get the key meta hash
     private getKeyMetaHash(json_key_info, key) {
         let hash = "";
         for (const [keyTemp, value] of Object.entries(json_key_info[key])) {
-            hash = hash + value;
+            hash += value;
         }
         let temp = hash.replace(/,/g, "");
         return this.sha256Digest(Buffer.from(temp), 'hex');
@@ -155,9 +146,9 @@ export class RemoteAttestor {
 
     // get the public key list hash
     private sha256DigestArray(messages) {
-        let sha256 = cryptoJS.algo.SHA256.create({asBytes: true});
+        let sha256 = cryptoJS.algo.SHA256.create({ asBytes: true });
         for (let m in messages) {
-            sha256.update(messages[m])
+            sha256.update(messages[m]);
         }
         let digest = sha256.finalize();
         return digest.toString(cryptoJS.enc.Hex);
@@ -171,15 +162,14 @@ export class RemoteAttestor {
         let key_pair_dict = this.genKeyPairDict(private_key);
         // collect the public key
         for (let pkg_element in key_shard_pkg) {
-            let keyShard = key_shard_pkg[pkg_element];
-            hashList.push(keyShard.public_key);
-            if (key_pair_dict[keyShard.public_key] == private_key) {
+            hashList.push(key_shard_pkg[pkg_element].public_key);
+            if (key_shard_pkg[pkg_element].public_key in key_pair_dict) {
                 index = pkg_element;
             }
         }
 
         if (index === undefined) {
-            throw new Error('Private key does not match the encrypted message!')
+            return false;
         }
 
         // 1. decrypt the value of 'encrypt_key_info' using the corresponding private key
@@ -217,14 +207,13 @@ export class RemoteAttestor {
         this.appendLog("*************************************************************************************************************");
 
         if (pubkey_list_hash != json_pubkey_list_hash) {
-            this.appendLog("Verify the public key list hash failed!\n");
             return false;
         }
         this.appendLog("1. The public key list hash has been verified successfully!\n");
 
         // hash the concatenation of public key list hash and key meta hash
         let app_hash = this.sha256Digest(Buffer.concat([Buffer.from(pubkey_list_hash, 'hex'), Buffer.from(key_meta_hash, 'hex')]), 'hex')
-        return {success: true, key_info, app_hash, public_key}
+        return { success: true, key_info, app_hash, public_key }
     }
 
     private getQeReportHash(tee_report_buffer) {
@@ -266,10 +255,9 @@ export class RemoteAttestor {
         let u = 0;
         let tmp;
         for (let t = 0; t < 2; t++) {
-            tmp = certification_data.indexOf("-----END CERTIFICATE-----", k)
-            keyCert[t] = certification_data.slice(u, tmp + cert_length);
-            k = tmp + cert_length;
-            u = tmp + cert_length;
+            tmp = certification_data.slice(k, k + cert_length);
+            keyCert.push(tmp);
+            k += cert_length;
         }
 
         const pck_cert = Certificate.fromPEM(keyCert[0]);
@@ -278,97 +266,92 @@ export class RemoteAttestor {
 
         // verify certification chain
         let result = processor_cert.checkSignature(pck_cert) == null &&
-            sgx_root.checkSignature(processor_cert) == null &&
-            sgx_root.checkSignature(sgx_root) == null &&
-            pck_cert.isIssuer(processor_cert) == true &&
-            processor_cert.isIssuer(sgx_root) == true &&
-            sgx_root.isIssuer(sgx_root) == true;
+            pck_cert.checkSignature(sgx_root) == null;
 
         return [result, pck_cert];
     }
 
-// verify app report signature
+    // verify app report signature
     private verifyAppReportSig(tee_report_buffer) {
-        // the size and the offset of signature and attestation public key
-        let app_signature_offset = 0x1b4;
+        // the offset and size of App Report Data
+        let app_report_data_offset = 0x170;
+        let app_report_data_size = 0x20;
+
+        // get App Report Data from report
+        let app_report_data = tee_report_buffer.slice(app_report_data_offset, app_report_data_offset + app_report_data_size);
+
+        // hash the App Report Data
+        let hash = this.sha256Digest(app_report_data, 'hex');
+
+        // the offset and size of App Report Signature
+        let app_signature_offset = 0x1f4;
         let app_signature_size = 0x40;
-        let attest_public_key_offset = 0x1f4;
-        let attest_public_key_size = 0x40;
 
-        let ecdsa = new elliptic.ec('p256');
-
-        // hash report header and app report
-        // convert it to BN
-        let header_and_report = tee_report_buffer.slice(0, 432);
-        let hash = new BN(this.sha256Digest(header_and_report, 'hex'), 16);
-
-        // get ISV enclave report signature
+        // get App Report Signature from report
         let signature = tee_report_buffer.slice(app_signature_offset, app_signature_offset + app_signature_size);
+
+        // verify the signature
         let sig = {
             r: signature.slice(0, 32).toString('hex'),
-            s: signature.slice(32, 64).toString('hex'),
+            s: signature.slice(32, 64).toString('hex')
         };
 
-        // convert attestation public key to a point on curve P256
-        let attest_public_key = tee_report_buffer.slice(attest_public_key_offset, attest_public_key_offset + attest_public_key_size);
-        let x = new BN(attest_public_key.slice(0, 32).toString('hex'), 16);
-        let y = new BN(attest_public_key.slice(32, 64).toString('hex'), 16);
-        let pub = P256.curve.point(x, y);
+        // get the public key from the report
+        let pub = P256.keyFromPublic(tee_report_buffer.slice(0x1f4, 0x1f4 + 0x40).toString('hex'), 'hex');
 
         // return the verification result
-        return ecdsa.verify(hash, sig, pub);
+        return P256.verify(hash, sig, pub);
     }
 
-// verify qe report signature
+    // verify qe report signature
     private verifyQeReportSig(tee_report_buffer, pck_cert) {
-        // the size and the offset of the signature and attestation public key
-        let qe_report_offset = 0x234;
-        let qe_report_size = 0x180;
-        let qe_signature_offset = 0x3b4;
+        // the offset and size of QE Report Data
+        let qe_report_data_offset = 0x374;
+        let qe_report_data_size = 0x20;
+
+        // get QE Report Data from report
+        let qe_report_data = tee_report_buffer.slice(qe_report_data_offset, qe_report_data_offset + qe_report_data_size);
+
+        // hash the QE Report Data
+        let hash = this.sha256Digest(qe_report_data, 'hex');
+
+        // the offset and size of QE Report Signature
+        let qe_signature_offset = 0x394;
         let qe_signature_size = 0x40;
 
-        let ecdsa = new elliptic.ec('p256');
-
-        // hash QE report
-        // convert it to BN
-        let hash = new BN(this.sha256Digest(tee_report_buffer.slice(qe_report_offset, qe_report_offset + qe_report_size), 'hex'), 16);
-
-        // get QE report signature
+        // get QE Report Signature from report
         let signature = tee_report_buffer.slice(qe_signature_offset, qe_signature_offset + qe_signature_size);
         let sig = {
             r: signature.slice(0, 32).toString('hex'),
-            s: signature.slice(32, 64).toString('hex'),
+            s: signature.slice(32, 64).toString('hex')
         };
 
         // get the public key from pckCert and convert it to a point on the elliptic curve
-        let pub = ecdsa.keyFromPublic(pck_cert.publicKey.keyRaw.toString('hex'), 'hex');
+        let pub = P256.keyFromPublic(pck_cert.publicKey.keyRaw.toString('hex'), 'hex');
 
         // return the verification result
-        return ecdsa.verify(hash, sig, pub);
+        return P256.verify(hash, sig, pub);
     };
 
     private verifyReportStepByStep(tee_report_buffer: Buffer, app_user_data, sgx_root_cert: Buffer) {
 
         const [cert_chain_result, pck_cert] = this.verifyCertChain(tee_report_buffer, sgx_root_cert);
         if (cert_chain_result !== true) {
-            this.appendLog("Verify cert chain failed!\n");
-            return false;
+            throw new Error('Cert chain verification failed');
         }
         this.appendLog("2. The cert chain has been verified successfully!\n");
 
         // verify App report signature
         const verify_app_result = this.verifyAppReportSig(tee_report_buffer);
         if (verify_app_result !== true) {
-            this.appendLog("Verify App report signature failed!\n");
-            return false;
+            throw new Error('App report signature verification failed');
         }
         this.appendLog("3. The App report signature has been verified successfully!\n");
 
         // verify QE report signature
         const verify_qe_result = this.verifyQeReportSig(tee_report_buffer, pck_cert);
         if (verify_qe_result !== true) {
-            this.appendLog("Verify QE report signature failed!\n");
-            return false;
+            throw new Error('QE report signature verification failed');
         }
         this.appendLog("4. The QE report signature has been verified successfully!\n");
 
@@ -395,18 +378,15 @@ export class RemoteAttestor {
 
         // verify user data
         if (app_user_data !== app_report_data) {
-            this.appendLog("Verify App report data failed!\n");
-            return false;
+            throw new Error('User data verification failed');
         }
         this.appendLog("5. User Data has been verified successfully!\n");
 
         if (qe_report_hash !== qe_report_data) {
-            this.appendLog("Verify QE report data failed!\n");
-            return false;
+            throw new Error('QE report data verification failed');
         }
         this.appendLog("6. QE Report Data has been verified successfully!\n");
 
         return true;
     }
 }
-
