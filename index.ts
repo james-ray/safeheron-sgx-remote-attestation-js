@@ -48,11 +48,11 @@ app.post('/decrypt-key-shard', async (req: Request, res: Response) => {
         console.log('Request body:', req.body);
 
         // Extract necessary fields
-        const { pubkey_list_hash, rsa_public_key, tee_report } = req.body.tee_return_data;
+        const { pubkey_list_hash, rsa_public_key, tee_report, server_pubkey } = req.body.tee_return_data;
 
         // Pass the wrapped structure to verifyReport
         const attestor = new RemoteAttestor();
-        const resJson = attestor.verifyReport(req.body, sgx_root_cert);
+        const resJson = attestor.verifyReport(req.body, sgx_root_cert, server_pubkey);
         const {success} = resJson;
         if (!success) {
             throw new Error('Verification failed');

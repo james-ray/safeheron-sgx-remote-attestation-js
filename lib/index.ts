@@ -114,7 +114,7 @@ export class RemoteAttestor {
         return {combined_hash: combined_hash, encoded_combined_hash: encoded_combined_hash};
     }
 
-    public verifyReport(report: string | VerifyData, sgx_root_cert: string | Buffer): any {
+    public verifyReport(report: string | VerifyData, sgx_root_cert: string | Buffer, server_pubkey: string | Buffer): any {
         // Log the type and value of the report parameter
 
         this.logInfo = ""
@@ -150,7 +150,7 @@ export class RemoteAttestor {
         const json_pubkey_list_hash = json_data.pubkey_list_hash;
         // get User Data
         let private_key = input_data.private_key;
-        const app_user_data = this.getAppReportHash(key_shard_pkg, json_pubkey_list_hash, private_key);
+        const app_user_data = this.getAppReportHash(key_shard_pkg, json_pubkey_list_hash, server_pubkey, private_key);
         const {success, key_info, app_hash, public_key} = app_user_data;
         if (!success) {
             throw new Error('App report hash generation failed');
@@ -209,7 +209,7 @@ export class RemoteAttestor {
         return digest.toString(cryptoJS.enc.Hex);
     }
 
-    private getAppReportHash(key_shard_pkg, json_pubkey_list_hash, private_key): {
+    private getAppReportHash(key_shard_pkg, json_pubkey_list_hash, server_pubkey, private_key): {
         success: boolean;
         key_info?: any;
         app_hash?: string;
@@ -275,7 +275,7 @@ export class RemoteAttestor {
         this.appendLog("1. The public key list hash has been verified successfully!\n");
 
         // hash the concatenation of public key list hash and key meta hash
-        let app_hash = this.sha256Digest(Buffer.concat([Buffer.from(pubkey_list_hash, 'hex'), Buffer.from(key_meta_hash, 'hex')]), 'hex')
+        let app_hash = this.sha256Digest(Buffer.concat([Buffer.from(pubkey_list_hash, 'hex'), Buffer.from(key_meta_hash, 'hex'), Buffer.from(server_pubkey, 'hex')]), 'hex')
         return {success: true, key_info, app_hash, public_key}
     }
 

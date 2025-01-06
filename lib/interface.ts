@@ -7,6 +7,7 @@ export interface VerifyData{
             e: string;
             n: string;
         };
+        server_pubkey: string;
     },
     private_key: string
 }
