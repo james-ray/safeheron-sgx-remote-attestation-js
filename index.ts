@@ -16,7 +16,7 @@ app.post('/webhook', async (req: Request, res: Response) => {
     console.time('attestation');
     try {
         // Log the entire request body for debugging
-        console.log('Request body:', req.body);
+        //console.log('Request body:', req.body);
         const attestor = new RemoteAttestor();
         const { pubkey_list_hash, rsa_public_key, tee_report } = req.body;
         const { combined_hash, encoded_combined_hash } = attestor.combineHashes(pubkey_list_hash, rsa_public_key, tee_report);

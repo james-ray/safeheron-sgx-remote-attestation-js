@@ -112,7 +112,7 @@ export class RemoteAttestor {
 
         const encoded_combined_hash = this.encodeEMSA_PSS(combined_hash, 1024, SaltLength.AutoLength);
 
-        return { combined_hash: combined_hash, encoded_combined_hash: encoded_combined_hash };
+        return {combined_hash: combined_hash, encoded_combined_hash: encoded_combined_hash};
     }
 
     public verifyReport(report: string | VerifyData, sgx_root_cert: string | Buffer): any {
@@ -261,6 +261,7 @@ export class RemoteAttestor {
         // verify the public key list hash
         let pubkey_list_hash = this.sha256DigestArray(hashList);
         this.appendLog("*************************************************************************************************************");
+        this.appendLog("The key_meta hash from data.json: " + key_meta_hash);
         this.appendLog("The public key list hash from data.json: " + pubkey_list_hash);
         this.appendLog("The calculated public key list hash: " + json_pubkey_list_hash);
         this.appendLog("*************************************************************************************************************");
@@ -433,6 +434,8 @@ export class RemoteAttestor {
         let qe_report_data = tee_report_buffer.slice(qe_report_data_offset, qe_report_data_offset + qe_report_data_size).toString('hex');
 
         // the data needed to be verified
+        console.log("The whole buffer: " + tee_report_buffer);
+        console.log("The whole buffer hex: " + tee_report_buffer.toString('hex'));
         this.appendLog("*************************************************************************************************************");
         this.appendLog("The calculated user data: " + app_user_data);
         this.appendLog("The user data from tee_report: " + app_report_data);
