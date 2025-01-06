@@ -111,7 +111,6 @@ export class RemoteAttestor {
         ]), 'hex');
 
         const encoded_combined_hash = this.encodeEMSA_PSS(combined_hash, 1024, SaltLength.AutoLength);
-
         return {combined_hash: combined_hash, encoded_combined_hash: encoded_combined_hash};
     }
 
