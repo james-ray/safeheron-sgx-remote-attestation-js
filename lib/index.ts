@@ -185,6 +185,8 @@ export class RemoteAttestor {
             hash += value;
         }
         let temp = hash.replace(/,/g, "");
+        console.log("----debug hash: " + hash);
+        console.log("----debug temp: " + temp);
         return this.sha256Digest(Buffer.from(temp), 'hex');
     }
 
@@ -265,6 +267,8 @@ export class RemoteAttestor {
         this.appendLog("The calculated public key list hash: " + json_pubkey_list_hash);
         this.appendLog("*************************************************************************************************************");
 
+        console.log("[debug]--- The key_meta hash from data.json: " + key_meta_hash);
+        console.log("[debug]--- The public key list hash from data.json: " + pubkey_list_hash);
         if (pubkey_list_hash != json_pubkey_list_hash) {
             return {success: false};
         }
