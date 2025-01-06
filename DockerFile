@@ -1,0 +1,20 @@
+FROM node:18.20.0
+# FROM node:16.14.0-stretch
+
+WORKDIR /app
+
+COPY package*.json ts*.json /app/
+COPY lib /app/lib
+COPY data /app/data
+
+RUN npm install
+RUN npm install -g typescript
+RUN npm install -g express
+RUN npm run build
+
+VOLUME ["/app/logs"]
+
+EXPOSE 3000
+
+# Use ENTRYPOINT to set the command to execute when the container starts
+ENTRYPOINT ["npm", "run", "start"]
