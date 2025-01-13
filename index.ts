@@ -28,7 +28,7 @@ app.post('/webhook', async (req: Request, res: Response) => {
         // Print out the hashes
         //console.log('Combined Hash:', combined_hash);
         //console.log('Encoded Combined Hash:', encoded_combined_hash);
-        console.log(req.body);
+        console.log(JSON.stringify(req.body, null, 2));
 
         res.json({ success: true, combined_hash, encoded_combined_hash });
     } catch (error) {
