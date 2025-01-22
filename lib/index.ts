@@ -269,6 +269,7 @@ export class RemoteAttestor {
 
         console.log("[debug]--- The key_meta hash from data.json: " + key_meta_hash);
         console.log("[debug]--- The public key list hash from data.json: " + pubkey_list_hash);
+        console.log("[debug]--- The server_pubkey from data.json: " + server_pubkey);
         if (pubkey_list_hash != json_pubkey_list_hash) {
             return {success: false};
         }

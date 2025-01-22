@@ -45,7 +45,7 @@ app.post('/decrypt-key-shard', async (req: Request, res: Response) => {
         const sgx_root_cert = fs.readFileSync('./data/Intel_SGX_Provisioning_Certification_RootCA.pem').toString();
 
         // Log the entire request body for debugging
-        console.log('Request body:', req.body);
+        //console.log('Request body:', req.body);
 
         // Extract necessary fields
         const { pubkey_list_hash, rsa_public_key, tee_report, server_pubkey } = req.body.tee_return_data;
